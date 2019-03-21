@@ -1,0 +1,14 @@
+import model dim6top_LO_UFO
+
+# include b quark in proton and jet definition for consistent 5 flavour scheme treatment
+define p = p b b~
+define j = j b b~
+
+# define decays
+define partl = ve vm vt e+ mu+ ta+ ve~ vm~ vt~ e- mu- ta-
+
+generate    p p > t t~ a DIM6=0, (t > b partl partl   DIM6=0), (t~ > b~ partl partl   DIM6=0) @1
+add process p p > t t~   DIM6=0, (t > b partl partl a DIM6=0), (t~ > b~ partl partl   DIM6=0) @2
+add process p p > t t~   DIM6=0, (t > b partl partl   DIM6=0), (t~ > b~ partl partl a DIM6=0) @3
+
+output TTGamma_DiLept_3LineBuggy -nojpeg

@@ -1,0 +1,13 @@
+import model dim6top_LO_UFO
+
+# include b quark in proton and jet definition for consistent 5 flavour scheme treatment
+define p = p b b~
+define j = j b b~
+
+# define decays
+define partl = ve~ vm~ vt~ e- mu- ta-
+define partq = u c d~ s~
+
+generate p p > t t~ > b b~ partl partl partq partq a DIM6=1
+
+output TTGamma_SingleLeptFromTbar_1Line_EFT -nojpeg
