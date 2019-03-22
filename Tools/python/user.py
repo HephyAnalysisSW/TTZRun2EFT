@@ -24,3 +24,10 @@ if os.environ['USER'] in ['llechner']:
 
     dpm_directory                       = '/dpm/oeaw.ac.at/home/cms/store/user/llechner/'
 
+    data_directory1                     = "/afs/hephy.at/data/llechner01/TTGammaEFT/nanoTuples/"
+    data_directory2                     = "/afs/hephy.at/data/llechner02/TTGammaEFT/nanoTuples/"
+    data_directory3                     = "/afs/hephy.at/data/llechner03/TTGammaEFT/nanoTuples/"
+
+    postprocessing_directoryGEN         = "TTGammaEFT_PP_GEN_TTG_v3/gen/"
+
+    gridpack_directory                  = "/afs/hephy.at/data/llechner01/TTGammaEFT/gridpacks/"

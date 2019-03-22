@@ -1,5 +1,6 @@
 from TTZRun2EFT.Analysis.Region import Region
 from TTZRun2EFT.Analysis.Region import texString
+from TTZRun2EFT.Analysis.Region import allowedVars
 
 from math import pi
 
@@ -17,33 +18,44 @@ def getRegions2D(varOne, varOneThresholds, varTwo, varTwoThresholds):
 
     return regions2D
 
-#Put all sets of regions that are used in the analysis, closure, tables, etc.
+def simpleStringToDict( simpleString ):
 
-#inclusive
-thresholds = [ 20, -999 ]
-genTTGammaRegionsIncl  = getRegionsFromThresholds( "GenPhoton_pt[0]", thresholds )
-recoTTGammaRegionsIncl = getRegionsFromThresholds( "PhotonGood0_pt", thresholds )
+    # replace variables by a string not containing "_"
+    for i, var in enumerate(allowedVars):
+        simpleString = simpleString.replace(var, "var%i"%i)
+    cutList = simpleString.split("_")
+
+    # convert simpleString to threshold tuple, fill in dict
+    cutDict = {}
+    for cut in cutList:
+        for i, var in enumerate(allowedVars):
+            if "var"+str(i) in cut:
+                cutRange = cut.replace("var%i"%i, "")
+                cutRange = cutRange.split("To")
+                cutRange = tuple( map( float, cutRange ) )
+                if len(cutRange) == 1: cutRange = ( cutRange[0], -1 )
+                cutDict.update( {var:cutRange} )
+
+    return cutDict
+
+def dictToCutString( dict ):
+
+    res=[]
+    for var in dict.keys():
+        svar = var
+        s1=svar+">="+str(dict[var][0])
+        if dict[var][1]>-1: s1+="&&"+svar+"<"+str(dict[var][1])
+        res.append(s1)
+    return "&&".join(res)
+
+def simpleStringToCutString( cutString ):
+    print cutString
+    print simpleStringToDict( cutString )
+    print dictToCutString( simpleStringToDict( cutString ) )
+    return dictToCutString( simpleStringToDict( cutString ) )
+
+#Put all sets of regions that are used in the analysis, closure, tables, etc.
 
 #differencial
 thresholds = [ 20, 120, 220, 320, 420, -999 ]
-genTTGammaRegions  = getRegionsFromThresholds( "GenPhoton_pt[0]", thresholds )
-recoTTGammaRegions = getRegionsFromThresholds( "PhotonGood0_pt", thresholds )
-
-thresholdsSmall = [ 20, 120 ]
-genTTGammaRegionsSmall  = getRegionsFromThresholds( "GenPhoton_pt[0]", thresholdsSmall )
-recoTTGammaRegionsSmall = getRegionsFromThresholds( "PhotonGood0_pt", thresholdsSmall )
-
-#prefiring plots sum(jets)
-preFiringSumJetEta    = getRegionsFromThresholds( "Jet_eta", [-5., -4.5, -4., -3.5, -3., -2.5, -2., -1.5, -1., -0.5, 0., 0.5, 1., 1.5, 2., 2.5, 3., 3.5, 4., 4.5, 5.], gtLastThreshold=False )
-preFiringSumJetPt     = getRegionsFromThresholds( "Jet_pt",  [30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, -999] )
-preFiringSumJetPtLog  = getRegionsFromThresholds( "Jet_pt",  [30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 600, 700, 800, 900, -999] )
-preFiringSumJet       = getRegionsFromThresholds( "Jet_phi", [-pi, -pi*(4./5), -pi*(3./5), -pi*(2./5), -pi*(1./5), 0., pi*(1./5), pi*(2./5), pi*(3./5), pi*(4./5), pi], gtLastThreshold=False )
-
-if __name__ == "__main__":
-    for region in preFiringSumJetPtLog:
-        print type(region.vals)
-        for val0, val1 in region.vals.values():
-            print val0
-        print val1
-    for region in preFiringSumJetEta:
-        print region.vals
+genTTZRegions  = getRegionsFromThresholds( "GenPhoton_pt[0]", thresholds )

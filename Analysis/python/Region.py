@@ -1,4 +1,4 @@
-allowedVars = [ "PhotonGood0_pt", "GenPhoton_pt[0]", "Jet_eta", "Jet_pt", "Jet_phi" ]
+allowedVars = [ "PhotonGood0_pt", "GenPhoton_pt[0]", "Jet_eta", "Jet_pt", "Jet_phi", "Z_pt", "cosThetaStar" ]
 texString  = { "PhotonGood0_pt":"p_{T}(#gamma)", "GenPhoton_pt[0]":"p_{T}(#gamma)", "Jet_eta":"#eta(jets)", "Jet_pt":"p_{T}(jets)", "Jet_phi":"#phi(jets)" }
 
 class Region:
@@ -33,7 +33,7 @@ class Region:
         for var in self.variables():
             svar = var
             s1=svar+">="+str(self.vals[var][0])
-            if self.vals[var][1]>-999: s1+="&&"+svar+"<"+str(self.vals[var][1])
+            if self.vals[var][1]>-1: s1+="&&"+svar+"<"+str(self.vals[var][1])
             res.append(s1)
         return "&&".join(res)
 
@@ -49,7 +49,6 @@ class Region:
         if self.vals[var][1]>-1: s1+="To"+str(self.vals[var][1])
         return var+s1
 
-
     def texString(self, useRootLatex = True):
         res=[]
         for var in allowedVars: #Always keep the sequence in allowedVars
@@ -63,7 +62,6 @@ class Region:
             if var in self.variables():
                 res.append(self.simpleStringForVar(var))
         return "_".join(res)
-        #return self.cutString()
 
     def __repr__(self):
         ''' Sorry.'''
@@ -74,3 +72,4 @@ class Region:
 
     def __eq__(self, other):
         return self.__repr__() == other.__repr__()
+
