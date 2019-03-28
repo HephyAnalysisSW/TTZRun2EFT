@@ -27,6 +27,7 @@ from Analysis.Tools.cardFileHelpers     import scaleCardFile, getRegionCuts
 
 from TTZRun2EFT.Tools.Cache             import Cache
 from TTZRun2EFT.Analysis.regions        import simpleStringToCutString
+from TTZRun2EFT.Analysis.Region         import aliases
 
 # Default Parameter
 loggerChoices = ['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'NOTSET']
@@ -68,35 +69,39 @@ if not args.cardFileSM16 and not args.cardFileSM17 and not args.cardFileSM18:
     raise Exception("What do you want me to do? Give me a cardfile to scale...")
 elif (not args.cardFileSM16 and 2016 in args.years):
     raise Exception("Sorry, currently only scaling of at least 2016 cardfiles implemented")
-
+regionCuts = { 2016:getRegionCuts( args.cardFileSM16 ) }
 # create missing SM cardfiles in sclaling previous years
 if args.cardFileSM16 and (not args.cardFileSM17 and 2017 in args.years):
     if "2016" in args.cardFileSM16:
-        args.cardFileSM17 = args.cardFileSM16.replace("2016","2017")
+        args.cardFileSM17 = args.cardFileSM16.replace("2016","scaled_2017")
     else:
-        args.cardFileSM17 = "2017_" + args.cardFileSM16
+        args.cardFileSM17 = args.cardFileSM16.replace(".","_scaled_2017.")
     scaleCardFile( args.cardFileSM16, args.cardFileSM17, scale=lumi17/lumi16, copyUncertainties=True)
     logger.info("Scaled 2016 cardfile to 2017")
+    regionCuts[2017] = getRegionCuts( args.cardFileSM16 )
+
 if args.cardFileSM17 and (not args.cardFileSM18 and 2018 in args.years):
     # prefer a 2017->2018 scaling over 2016->2018 scaling if possible
     if "2017" in args.cardFileSM17:
-        args.cardFileSM18 = args.cardFileSM17.replace("2017","2018")
+        args.cardFileSM18 = args.cardFileSM17.replace("2017","scaled_2018")
     else:
-        args.cardFileSM18 = "2018_" + args.cardFileSM17
+        args.cardFileSM18 = args.cardFileSM17.replace(".","_scaled_2018.")
     scaleCardFile( args.cardFileSM17, args.cardFileSM18, scale=lumi18/lumi17, copyUncertainties=True)
     logger.info("Scaled 2017 cardfile to 2018")
+    regionCuts[2018] = getRegionCuts( args.cardFileSM17 )
 
 if args.cardFileSM16 and (not args.cardFileSM18 and 2018 in args.years):
     # only needed for [2016, 2018] combined analyses, which is stupid
     if "2016" in args.cardFileSM16:
-        args.cardFileSM18 = args.cardFileSM16.replace("2016","2018")
+        args.cardFileSM18 = args.cardFileSM16.replace("2016","scaled_2018")
     else:
-        args.cardFileSM18 = "2018_" + args.cardFileSM16
+        args.cardFileSM18 = args.cardFileSM16.replace(".","_scaled_2018.")
     scaleCardFile( args.cardFileSM16, args.cardFileSM18, scale=lumi18/lumi16, copyUncertainties=True)
     logger.info("Scaled 2016 cardfile to 2018")
+    regionCuts[2018] = getRegionCuts( args.cardFileSM16 )
 
 cardsSM    = { 2016:args.cardFileSM16 if args.cardFileSM16 else "none", 2017:args.cardFileSM17 if args.cardFileSM17 else "none", 2018:args.cardFileSM18 if args.cardFileSM18 else "none" }
-regionCuts = { year:getRegionCuts( cardsSM[year] ) for year in args.years }
+regionCuts.update( { year:getRegionCuts( cardsSM[year] ) for year in args.years if year not in regionCuts.keys() } )
 
 tableName = "nllcache"
 cache_dir_nll    = os.path.join(cache_directory, "nll")
@@ -108,12 +113,11 @@ dbPath = os.path.join(cache_dir_nll, dbFile)
 nllCache  = Cache( dbPath, tableName, ["cardname16", "cardname17", "cardname18", "cardname", "WC", "WC_val", "nll_prefit", "nll_postfit" ] )
 if nllCache is None: raise
 
-#signalSample = TTG_SingleLeptFromT_1L_test_EFT
-genSignalSample = TTZ_EFT
+genSignalSample = ttZ_ll_LO_order2_15weights_ref
 
 cardname  = [ genSignalSample.name ]
 cardname += map( str, args.years )
-cardname += args.genSelection
+cardname += [ args.genSelection ]
 for i, var in enumerate(args.variables):
     cardname += [ var, "var%i"%i ]
 cardname += [ 'small' if args.small else 'full' ]
@@ -124,8 +128,8 @@ logger.info( "General card name: %s" %cardname )
 def isInDatabase( point ):
     card = cardname
     for i, var in enumerate(point):
-        card = card.replace("var%i", str(var))
-    res  = {"cardname16":cardsSM[2016], "cardname17":cardsSM[2017], "cardname18":cardsSM[2018], "cardname":card, "WC":"_".join(args.variables), "WC_val":"_".join(map(str,point))}
+        card = card.replace("var%i"%i, str(var))
+    res = {"cardname16":cardsSM[2016], "cardname17":cardsSM[2017], "cardname18":cardsSM[2018], "cardname":card, "WC":"_".join(args.variables), "WC_val":"_".join(map(str,point))}
     nCacheFiles = nllCache.contains( res )
     return bool(nCacheFiles)
 
@@ -172,11 +176,15 @@ for year in args.years:
 
 def calculation( point ):
     
+    c = CardFileWriter()
+    c.reset()
+    c.releaseLocation = combineReleaseLocation
+
     kwargs = dict( zip( args.variables, point ) )
 
     cacheCard = cardname
     for i, var in enumerate( point ):
-        cacheCard = cacheCard.replace("var%i", str(var))
+        cacheCard = cacheCard.replace("var%i"%i, str(var))
 
     card     = {}
     cardpath = {}
@@ -195,7 +203,8 @@ def calculation( point ):
             signal_genRateEFT = w.get_weight_yield( coeffList[year][region], **kwargs )
             scale[region]     = signal_genRateEFT / signal_genRateSM[year][region]
 
-        scaleCardFile( cardsSM[year], cardpath[year], scale=scale, scaledProcesses="signal", copyUncertainties=True)
+        print point, scale
+        scaleCardFile( cardsSM[year], cardpath[year], scale=scale, scaledProcesses=["signal"], copyUncertainties=True)
 
     if combinedAnalysis:
         # combinin years, selections or both
@@ -212,7 +221,7 @@ def calculation( point ):
     if nll_prefit  is None or abs(nll_prefit) > 10000 or abs(nll_prefit) < 1e-5:   nll_prefit  = 999
     if nll_postfit is None or abs(nll_postfit) > 10000 or abs(nll_postfit) < 1e-5: nll_postfit = 999
 
-    if not args.keepCards and not (var1==0 and var2==0):
+    if not args.keepCards and not all( [ p==0 for p in point ] ):
         os.remove( combinedCard )
         if combinedAnalysis:
             for sel in args.selections:
@@ -220,11 +229,18 @@ def calculation( point ):
                     year = str(year)+str(sel)
                     os.remove( cardpath[year] )
 
-    res  = {"cardname16":cardsSM[2016], "cardname17":cardsSM[2017], "cardname18":cardsSM[2018], "cardname":cacheCard, "WC":"_".join(args.variables), "WC_val":"_".join(point), "nll_prefit":nll_prefit, "nll_postfit":nll_postfit}
-    logger.info( "NLL limit for %s: nll_prefit = %f, nll_postfit = %f"%( ", ".join( [" = ".join( [var, point[i]] ) for i,var in enumerate(args.variables) ] ), nll_prefit, nll_postfit) )
+    res  = {"cardname16":cardsSM[2016], "cardname17":cardsSM[2017], "cardname18":cardsSM[2018], "cardname":cacheCard, "WC":"_".join(args.variables), "WC_val":"_".join(map(str,point)), "nll_prefit":nll_prefit, "nll_postfit":nll_postfit}
+    logger.info( "NLL limit for %s: nll_prefit = %f, nll_postfit = %f"%( ", ".join( [" = ".join( [var, str(point[i])] ) for i,var in enumerate(args.variables) ] ), nll_prefit, nll_postfit) )
     nllCache.add( res, nll_prefit, overwrite=True )
 
     del c
+
+def replaceAliases( cutString ):
+    cut = cutString
+    for key, val in aliases.iteritems():
+        cut = cut.replace( key, val )
+    logger.info( "Replacing variable names: old cut: %s, new cut: %s" %(cutString, cut) )
+    return cut
 
 def setup():
     # preparing gen-sample reweighting
@@ -234,11 +250,9 @@ def setup():
         for region, cut in regionCuts[year].iteritems():
 
             logger.info( "At region %s", region )
-            print cut
-            print simpleStringToCutString( cut )
 
-            sel = "&&".join( [ cutInterpreter.cutString( args.genSelection ), simpleStringToCutString( cut ) ] )
-            print sel
+            regionCut = replaceAliases( simpleStringToCutString( cut ) ) 
+            sel = "&&".join( [ cutInterpreter.cutString( args.genSelection ), regionCut ] )
             coeffList[year][region]        = w.getCoeffListFromDraw( genSignalSample, selectionString=sel )
             signal_genRateSM[year][region] = float( w.get_weight_yield( coeffList[year][region] ) )
 

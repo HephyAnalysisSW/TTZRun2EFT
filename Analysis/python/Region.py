@@ -1,6 +1,6 @@
-allowedVars = [ "PhotonGood0_pt", "GenPhoton_pt[0]", "Jet_eta", "Jet_pt", "Jet_phi", "Z_pt", "cosThetaStar" ]
-texString  = { "PhotonGood0_pt":"p_{T}(#gamma)", "GenPhoton_pt[0]":"p_{T}(#gamma)", "Jet_eta":"#eta(jets)", "Jet_pt":"p_{T}(jets)", "Jet_phi":"#phi(jets)" }
-
+allowedVars = [ "PhotonGood0_pt", "GenPhoton_pt[0]", "Jet_eta", "Jet_pt", "Jet_phi", "Z1_pt_4l", "Z1_cosThetaStar_4l", "Z_pt", "cosThetaStar" ]
+texString   = { "PhotonGood0_pt":"p_{T}(#gamma)", "GenPhoton_pt[0]":"p_{T}(#gamma)", "Jet_eta":"#eta(jets)", "Jet_pt":"p_{T}(jets)", "Jet_phi":"#phi(jets)" }
+aliases     = { "Z_pt":"genZ_pt", "cosThetaStar":"genZ_cosThetaStar" }
 class Region:
 
     def __init__(self, var, val):

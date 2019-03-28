@@ -16,7 +16,7 @@ if os.environ['USER'] in ['llechner']:
     results_directory                   = "/afs/hephy.at/data/llechner01/TTZRun2EFT/results/"
 
     plot_directory                      = "/afs/hephy.at/user/l/llechner/www/TTZRun2EFT/"
-    postprocessing_output_directory     = "/afs/hephy.at/data/llechner03/TTZRun2EFT/nanoTuples/"
+    postprocessing_output_directory     = "/afs/hephy.at/data/llechner01/TTZRun2EFT/genTuples/"
 
     cache_directory                     = "/afs/hephy.at/data/llechner01/TTZRun2EFT/cache/"
     combineReleaseLocation              = '/afs/hephy.at/user/l/llechner/public/CMSSW_8_1_0/src'
@@ -24,10 +24,10 @@ if os.environ['USER'] in ['llechner']:
 
     dpm_directory                       = '/dpm/oeaw.ac.at/home/cms/store/user/llechner/'
 
-    data_directory1                     = "/afs/hephy.at/data/llechner01/TTGammaEFT/nanoTuples/"
-    data_directory2                     = "/afs/hephy.at/data/llechner02/TTGammaEFT/nanoTuples/"
-    data_directory3                     = "/afs/hephy.at/data/llechner03/TTGammaEFT/nanoTuples/"
+    data_directory1                     = "/afs/hephy.at/data/llechner01/TTZRun2EFT/genTuples/"
+    data_directory2                     = "/afs/hephy.at/data/llechner02/TTZRun2EFT/genTuples/"
+    data_directory3                     = "/afs/hephy.at/data/llechner03/TTZRun2EFT/genTuples/"
 
-    postprocessing_directoryGEN         = "TTGammaEFT_PP_GEN_TTG_v3/gen/"
+    postprocessing_directoryGEN         = "TTZRun2EFT_PP_GEN_v1/gen/"
 
-    gridpack_directory                  = "/afs/hephy.at/data/llechner01/TTGammaEFT/gridpacks/"
+    gridpack_directory                  = "/afs/hephy.at/data/llechner01/TTZRun2EFT/gridpacks/"

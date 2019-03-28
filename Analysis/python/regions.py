@@ -49,9 +49,6 @@ def dictToCutString( dict ):
     return "&&".join(res)
 
 def simpleStringToCutString( cutString ):
-    print cutString
-    print simpleStringToDict( cutString )
-    print dictToCutString( simpleStringToDict( cutString ) )
     return dictToCutString( simpleStringToDict( cutString ) )
 
 #Put all sets of regions that are used in the analysis, closure, tables, etc.

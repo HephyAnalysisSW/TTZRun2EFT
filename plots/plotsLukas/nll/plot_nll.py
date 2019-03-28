@@ -33,22 +33,23 @@ loggerChoices = ['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'NOTS
 import argparse
 argParser = argparse.ArgumentParser(description = "Argument parser")
 argParser.add_argument('--logLevel',           action='store',      default='INFO', nargs='?', choices=loggerChoices,                                help="Log level for logging")
-argParser.add_argument('--genSelection1l',     action='store',      default='dilepOS-pTG20-nPhoton1p-offZSFllg-offZSFll-mll40-nJet2p-nBTag1p')
-argParser.add_argument('--genSelection2l',     action='store',      default='dilepOS-pTG20-nPhoton1p-offZSFllg-offZSFll-mll40-nJet2p-nBTag1p')
-argParser.add_argument('--selection1l',        action='store',      default='nLepTight1-nLepVeto1-nJet4p-nBTag1p-pTG20-nPhoton1p')
-argParser.add_argument('--selection2l',        action='store',      default='dilepOS-nLepVeto2-pTG20-nPhoton1p-offZSFllg-offZSFll-mll40-nJet2p-nBTag1p')
-argParser.add_argument('--variables' ,         action='store',      default = ['ctZ', 'ctZI'], type=str, nargs=2,                                    help="argument plotting variables")
+argParser.add_argument('--genSelection',       action='store',      default='onZll')
 argParser.add_argument('--small',              action='store_true',                                                                                  help='Run only on a small subset of the data?', )
+argParser.add_argument('--profiled',           action='store_true',                                                                                  help='Profile datapoints?', )
 argParser.add_argument('--years',              action='store',      default=[ 2016, 2017 ], type=int, choices=[2016, 2017, 2018], nargs="*",         help="Which years to combine?")
-argParser.add_argument('--selections',         action='store',      default=[ "1l", "2l" ], type=str, choices=["1l", "2l"], nargs="*",               help="Which selections to combine?")
-argParser.add_argument('--binning',            action='store',      default=[50, -1, 1, 50, -1, 1 ], type=float, nargs=6,                            help="argument parameters")
+argParser.add_argument('--cardFileSM16',       action='store',      default=None, type=str,                                                          help="SM cardfile for 2016")
+argParser.add_argument('--cardFileSM17',       action='store',      default=None, type=str,                                                          help="SM cardfile for 2017")
+argParser.add_argument('--cardFileSM18',       action='store',      default=None, type=str,                                                          help="SM cardfile for 2018")
+argParser.add_argument('--variables' ,         action='store',      default = ['ctZ', 'ctZI'],       type=str,   nargs=*,                            help="argument variables")
+argParser.add_argument('--plotVariables' ,     action='store',      default = ['ctZ', 'ctZI'],       type=str,   nargs=2,                            help="argument plotting variables")
+argParser.add_argument('--binning',            action='store',      default=[30, -2, 2, 30, -2, 2 ], type=float, nargs=6,                            help="argument parameters")
+argParser.add_argument('--checkOnly',          action='store_true',                                                                                  help='Just check if yield is already calculated', )
 argParser.add_argument('--contours',           action='store_true',                                                                                  help='draw 1sigma and 2sigma contour line?')
 argParser.add_argument('--smooth',             action='store_true',                                                                                  help='smooth histogram?')
 argParser.add_argument('--zRange',             action='store',      default=[None, None],      type=float, nargs=2,                                  help="argument parameters")
 argParser.add_argument('--xyRange',            action='store',      default=[None, None, None, None],  type=float, nargs=4,                          help="argument parameters")
 argParser.add_argument('--binMultiplier',      action='store',      default=3,                 type=int,                                             help='bin multiplication factor')
 argParser.add_argument('--skipMissingPoints',  action='store_true',                                                                                  help='Set missing NLL points to 999?')
-argParser.add_argument('--inclusive',          action='store_true',                                                                                  help='run inclusive regions', )
 argParser.add_argument('--tag',                action='store',      default="combined",        type=str,                                             help='bin multiplication factor')
 args = argParser.parse_args()
 
@@ -60,47 +61,57 @@ import RootTools.core.logger as logger_rt
 logger    = logger.get_logger(    args.logLevel, logFile = None)
 logger_rt = logger_rt.get_logger( args.logLevel, logFile = None)
 
+if args.cardFileSM16 and (not args.cardFileSM17 and 2017 in args.years):
+    if "2016" in args.cardFileSM16:
+        args.cardFileSM17 = args.cardFileSM16.replace("2016","scaled_2017")
+    else:
+        args.cardFileSM17 = args.cardFileSM16.replace(".","_scaled_2017.")
+
+if args.cardFileSM17 and (not args.cardFileSM18 and 2018 in args.years):
+    # prefer a 2017->2018 scaling over 2016->2018 scaling if possible
+    if "2017" in args.cardFileSM17:
+        args.cardFileSM18 = args.cardFileSM17.replace("2017","scaled_2018")
+    else:
+        args.cardFileSM18 = args.cardFileSM17.replace(".","_scaled_2018.")
+
+if args.cardFileSM16 and (not args.cardFileSM18 and 2018 in args.years):
+    # only needed for [2016, 2018] combined analyses, which is stupid
+    if "2016" in args.cardFileSM16:
+        args.cardFileSM18 = args.cardFileSM16.replace("2016","scaled_2018")
+    else:
+        args.cardFileSM18 = args.cardFileSM16.replace(".","_scaled_2018.")
 
 tableName = "nllcache"
-cache_directory += "nll/"
-dbFile = "NLLcache"
-if   "1l" in args.selections and len(args.selections) == 1: dbFile += "_semilep"
-elif "2l" in args.selections and len(args.selections) == 1: dbFile += "_dilep"
-elif len(args.selections) > 1:                              dbFile += "_both"
-if len(args.years) > 1:                                     dbFile += "_comb"
-if args.inclusive:                                          dbFile += "_incl"
-if args.tag != "combined":                                  dbFile += "_%s"%args.tag
-dbFile += ".sql"
+cache_dir_nll    = os.path.join(cache_directory, "nll")
+if not os.path.isdir(cache_dir_nll):
+    os.makedirs(cache_dir_nll)
+dbFile = "_".join( ["NLLcache"] + map( str, args.years ) ) + ".sql"
+dbPath = os.path.join(cache_dir_nll, dbFile)
 
-dbPath = cache_directory + dbFile
-
-nllCache  = Cache( dbPath, tableName, ["cardname", "year", "WC1_name", "WC1_val", "WC2_name", "WC2_val", "nll_prefit", "nll_postfit" ] )
+nllCache  = Cache( dbPath, tableName, ["cardname16", "cardname17", "cardname18", "cardname", "WC", "WC_val", "nll_prefit", "nll_postfit" ] )
 if nllCache is None: raise
 
+if set( args.plotVariables ) - set( args.variables ):
+    raise Exception( "PlotVariables not in cached data!" )
+
+# sort in same order as args.variables
+args.plotVariables = [ var for var in args.variables if var in args.plotVariables ]
+if len( args.plotVariables ) != 2:
+    raise Exception( "Need two plotVariables!" )
+
 # Gen Samples
-from TTZRun2EFT.Samples.genTuples_TTGamma_postProcessed                    import *
-#signalSample = TTG_SingleLeptFromT_1L_test_EFT
-genSignalSample = {}
-genSignalSample["1l"] = TTG_DiLept_1L_EFT
-genSignalSample["2l"] = TTG_DiLept_1L_EFT
+from TTZRun2EFT.Samples.genTuples_TTZ_postProcessed import *
+genSignalSample = ttZ_ll_LO_order2_15weights_ref
 
-selection = {}
-selection["1l"] = args.selection1l
-selection["2l"] = args.selection2l
-
-genSelection = {}
-genSelection["1l"] = args.genSelection1l
-genSelection["2l"] = args.genSelection2l
-
-cardname  = [ genSignalSample[sel].name for sel in args.selections ]
+cardname  = [ genSignalSample.name ]
 cardname += map( str, args.years )
-cardname += args.selections
-cardname += [ args.variables[0], "var1", args.variables[1], "var2" ]
-cardname += [ selection[sel] for sel in args.selections ]
+cardname += [ args.genSelection ]
+for i, var in enumerate(args.variables):
+    cardname += [ var, "var%i"%i ]
 cardname += [ 'small' if args.small else 'full' ]
-if args.inclusive: cardname += [ "incl" ]
-if args.tag != "combined": cardname += [ args.tag ]
 cardname  = '_'.join( cardname )
+
+logger.info( "General card name: %s" %cardname )
 
 lumi = {}
 lumi[2016] = 35.92
@@ -108,10 +119,12 @@ lumi[2017] = 41.86
 lumi[2018] = 58.83
 lumi_scale = sum( [ lumi[year] for year in args.years ])
 
-def getNllData( var1, var2 ):
-    card = cardname.replace("var1", str(var1)).replace("var2", str(var2))
+def getNllData( point ):
+    card = cardname
+    for i, var in enumerate(point):
+        card = card.replace("var%i"%i, str(var))
 
-    res  = {'cardname':card, "year":"combined", "WC1_name":args.variables[0], "WC1_val":var1, "WC2_name":args.variables[1], "WC2_val":var2}
+    res = {"cardname16":cardsSM[2016], "cardname17":cardsSM[2017], "cardname18":cardsSM[2018], "cardname":card, "WC":"_".join(args.variables), "WC_val":"_".join(map(str,point))}
     nCacheFiles = nllCache.contains( res )
 
     if nCacheFiles:
@@ -123,38 +136,45 @@ def getNllData( var1, var2 ):
         else: sys.exit(1)
     return float(nll)
 
-#binning range
-xbins, xlow, xhigh = args.binning[:3]
-xbins = int(xbins)
-ybins, ylow, yhigh = args.binning[3:]
-ybins = int(ybins)
 
-if xbins > 1:
-    xRange       = np.linspace( xlow, xhigh, xbins, endpoint=False)
-    halfstepsize = 0.5 * ( xRange[1] - xRange[0] )
-    xRange       = [ round(el + halfstepsize, 3) for el in xRange ]
-else:
-    xRange = [ 0.5 * ( xlow + xhigh ) ]
+def chunks( l, n ):
+    # split list in chuncs
+    for i in range( 0, len(l), n ):
+        yield l[i:i + n]
 
-if ybins > 1:
-    yRange = np.linspace( ylow, yhigh, ybins, endpoint=False)
-    halfstepsize = 0.5 * ( yRange[1] - yRange[0] )
-    yRange = [ round(el + halfstepsize, 3) for el in yRange ]
-else:
-    yRange = [ 0.5 * ( ylow + yhigh ) ]
+binDict = dict(zip( args.variables, [dict(zip( ["nBins", "min", "max"], var )) for var in chunks(args.binning, 3) ] ))
+
+for var in binDict.values():
+    if var["nBins"] > 1:
+        xRange       = np.linspace( var["min"], var["max"], var["nBins"], endpoint=False)
+        halfstepsize = 0.5 * ( xRange[1] - xRange[0] )
+        var["range"] = [0] + [ round(el + halfstepsize, 3) for el in xRange ]
+    else:
+        var["range"] = [0] + [ 0.5 * ( var["min"] + var["max"] ) ]
+
+# get all possible combinations of points for i variables, set non-plot variables tto 0 except for profiled plot
+points2D = list( itertools.product( *(binDict[var]["range"] if var in args.plotVariables or args.profiled else [0]*len(binDict[var]["range"]) for var in args.variables) ) ) #2D plots
 
 logger.info("Loading cache data" )
-points2D = [ (0, 0) ] #SM point
-points2D += [ (0, varY) for varY in yRange] #1D plots
-points2D += [ (varX, 0) for varX in xRange] #1D plots
-points2D += [ (varX, varY) for varY in yRange for varX in xRange] #2D plots
 
-nllData  = [ (var1, var2, getNllData( var1, var2 )) for var1, var2 in points2D ]
-sm_nll   = filter( lambda (x, y, nll): x==0 and y==0, nllData )[0][2]
-nllData  = [ (x, y, 2*(nll - sm_nll)) for x, y, nll in nllData ]
+sm_nll  = getNllData( tuple( [0]*len(args.variables) ) )
+nllData = [ tuple( list( point ) + [ 2*(getNllData( point )-sm_nll) ] ) for point in points2D ]
 
-# Remove white spots in plots
-nllData  = [ (x, y, nll) if nll > 1e-5 else (x, y, 1e-5) for x, y, nll in nllData ]
+# now reduce dimensions for plot, either profiled or just remove other dimensions
+if args.profiled:
+    profNll = []
+    varIndexX = args.variables.index(args.plotVariables[0])
+    varIndexY = args.variables.index(args.plotVariables[1])
+    for x in binDict[args.plotVariables[0]]["range"]:
+        for y in binDict[args.plotVariables[1]]["range"]:
+            nll = filter( lambda point: point[varIndexX]==x and point[varIndexY]==y, nllData )
+            if not nll: continue
+            nll.sort( key = lambda point: point[-1] )
+            profNll.append( (x, y, nll[0]) )
+    nllData = profNll
+else:
+    nllData = [ tuple( [ p for i, p in enumerate(point[:-1]) if args.variables[i] in args.plotVariables] + [ point[-1] ] ) for point in nllData ]
+
 
 def toGraph2D( name, title, data ):
     result = ROOT.TGraph2D( len(data) )
@@ -172,7 +192,7 @@ def toGraph2D( name, title, data ):
     return result, debug
 
 #get TGraph2D from results list
-title = "TTG_%s_%s"%(args.variables[0], args.variables[1])
+title = "TTZ_%s_%s"%(args.plotVariables[0], args.plotVariables[1])
 a, debug = toGraph2D( title, title, nllData )
 nxbins   = max( 1, min( 500, xbins*args.binMultiplier ) )
 nybins   = max( 1, min( 500, ybins*args.binMultiplier ) )
@@ -233,8 +253,8 @@ if not None in args.xyRange[:2]:
 if not None in args.zRange[2:]:
     hist.GetYaxis().SetRangeUser( args.xyRange[2], args.xyRange[3] )
 
-xTitle = args.variables[0].replace("c", "C_{").replace("I", "}^{[Im]").replace('p','#phi') + '}'
-yTitle = args.variables[1].replace("c", "C_{").replace("I", "}^{[Im]").replace('p','#phi') + '}'
+xTitle = args.plotVariables[0].replace("c", "C_{").replace("I", "}^{[Im]").replace('p','#phi') + '}'
+yTitle = args.plotVariables[1].replace("c", "C_{").replace("I", "}^{[Im]").replace('p','#phi') + '}'
 hist.GetXaxis().SetTitle( xTitle + ' (#Lambda/TeV)^{2}' )
 hist.GetYaxis().SetTitle( yTitle + ' (#Lambda/TeV)^{2}' )
 
@@ -261,8 +281,8 @@ latex1.SetTextSize(0.035)
 latex1.SetTextFont(42)
 latex1.SetTextAlign(11)
 
-addon = "(%s)"%("+".join(args.selections))
-latex1.DrawLatex(0.12, 0.92, '#bf{CMS} #it{Simulation Preliminary} ' + addon),
+addon = " (profiled)" if args.profiled else ""
+latex1.DrawLatex(0.12, 0.92, '#bf{CMS} #it{Simulation Preliminary}' + addon),
 latex1.DrawLatex(0.63, 0.92, '#bf{%3.1f fb{}^{-1} (13 TeV)}' % lumi_scale)
 
 latex2 = ROOT.TLatex()
@@ -273,13 +293,13 @@ latex2.SetTextAlign(11)
 
 y   = str(args.years[0]) if len(args.years)==1 else "combined"
 sel = selection[args.selections[0]] if len(args.selections)==1 else "combined"
-plot_directory_ = os.path.join( plot_directory, "NLLPlots%s"%("Incl" if args.inclusive else ""), y, sel, "_".join(args.variables) )
+plot_directory_ = os.path.join( plot_directory, "NLLPlots", y, "_".join(args.variables) )
 
 if not os.path.isdir( plot_directory_ ):
     try: os.makedirs( plot_directory_ )
     except: pass
 
-plotname = "%s%s"%("_".join(args.variables), "_%s"%args.tag if args.tag != "combined" else "")
+plotname = "%s%s"%("_".join(args.plotVariables), "_profiled" if args.profiled else "")
 for e in [".png",".pdf",".root"]:
     cans.Print( plot_directory_ + "/%s%s"%(plotname, e) )
 

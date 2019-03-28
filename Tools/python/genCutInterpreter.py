@@ -7,16 +7,16 @@ from Analysis.Tools.CutInterpreter import CutInterpreter
 mZ = 91.1876
 
 special_cuts = {
-    "onZll":             "abs(mll-%s)<=15"%(mZ),
+    "onZll":             "abs(genZ_mass-%s)<=15"%(mZ),
   }
 
-continous_variables = [ ("met", "GenMET_pt"), ("pTG","GenPhoton_pt[0]"), ("mll", "mll"), ("mllgamma", "mllgamma") ]
-discrete_variables  = [ ("nJet", "nGenJet"), ("nBTag", "nGenBJet"), ("nLep","nGenLepton"), ("nPhoton","nGenPhoton") ]
+continous_variables = [ ("met", "genMet_pt"), ("pTG","genPhoton_pt[0]"), ("mll", "genZ_mass"), ("Zpt","genZ_pt") ]
+discrete_variables  = [ ("nJet", "ngenJet"), ("nBTag", "Sum$(genJet_pt>30&&genJet_matchBParton>=1&&abs(genJet_eta)<2.5)"), ("nLep","ngenLep"), ("nPhoton","ngenPhoton") ]
 
 cutInterpreter = CutInterpreter( continous_variables, discrete_variables, special_cuts)
 
 if __name__ == "__main__":
-    print cutInterpreter.cutString("dilepOS-pTG20-nPhoton1p-offZSFll-offZSFllg-mll40")
+    print cutInterpreter.cutString("onZll-met40-pTG100-mll20-Zpt0-nJet3p-nBTag0-nLep4p-nPhoton1p")
 
 # Bin0: all Z_pt0To100_cosThetaStar-1
 # Bin1: all Z_pt0To100_cosThetaStar-0.6To0.6
