@@ -7,10 +7,12 @@ from Analysis.Tools.CutInterpreter import CutInterpreter
 mZ = 91.1876
 
 special_cuts = {
-    "onZll":             "abs(genZ_mass-%s)<=15"%(mZ),
+    "onZll":          "abs(genLepZ_mass-%s)<=10"%(mZ),
+    "onGenZll":       "abs(genZ_mass-%s)<=10"%(mZ),
+    "all":            "(1)",
   }
 
-continous_variables = [ ("met", "genMet_pt"), ("pTG","genPhoton_pt[0]"), ("mll", "genZ_mass"), ("Zpt","genZ_pt") ]
+continous_variables = [ ("met", "genMet_pt"), ("pTG","genPhoton_pt[0]"), ("mll", "genLepZ_mass"), ("Zpt","genLepZ_pt") ]
 discrete_variables  = [ ("nJet", "ngenJet"), ("nBTag", "Sum$(genJet_pt>30&&genJet_matchBParton>=1&&abs(genJet_eta)<2.5)"), ("nLep","ngenLep"), ("nPhoton","ngenPhoton") ]
 
 cutInterpreter = CutInterpreter( continous_variables, discrete_variables, special_cuts)

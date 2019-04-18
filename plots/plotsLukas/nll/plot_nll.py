@@ -5,6 +5,7 @@
 import sys, os, pickle, copy, ROOT
 import ctypes
 import numpy as np
+import itertools
 
 # Multiprocessing
 from multiprocessing import Pool
@@ -17,14 +18,21 @@ ROOT.gROOT.SetBatch( True )
 
 # TTZRun2EFT
 from TTZRun2EFT.Tools.user              import plot_directory, cache_directory
-from TTZRun2EFT.Tools.cutInterpreter    import cutInterpreter
-from TTZRun2EFT.Tools.genCutInterpreter import cutInterpreter as genCutInterpreter
 
 # get the reweighting function
 from Analysis.Tools.WeightInfo          import WeightInfo
 from Analysis.Tools.metFilters          import getFilterCut
 
 from TTZRun2EFT.Tools.Cache             import Cache
+from TTZRun2EFT.Tools.niceColorPalette  import niceColorPalette, redColorPalette, newColorPalette
+
+# Plot style
+ROOT.gROOT.LoadMacro('$CMSSW_BASE/src/TTZRun2EFT/Tools/scripts/tdrstyle.C')
+ROOT.setTDRStyle()
+#niceColorPalette()
+ROOT.gStyle.SetNumberContours(255)
+#ROOT.gStyle.SetPalette(ROOT.kCherry)#, ctypes.c_int(112), 0.3)#, *nullptr, 0.3)
+newColorPalette()
 
 # Default Parameter
 loggerChoices = ['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'NOTSET']
@@ -33,23 +41,23 @@ loggerChoices = ['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'TRACE', 'NOTS
 import argparse
 argParser = argparse.ArgumentParser(description = "Argument parser")
 argParser.add_argument('--logLevel',           action='store',      default='INFO', nargs='?', choices=loggerChoices,                                help="Log level for logging")
-argParser.add_argument('--genSelection',       action='store',      default='onZll')
+argParser.add_argument('--genSelection',       action='store',      default='onZll-nJet3p')
 argParser.add_argument('--small',              action='store_true',                                                                                  help='Run only on a small subset of the data?', )
 argParser.add_argument('--profiled',           action='store_true',                                                                                  help='Profile datapoints?', )
 argParser.add_argument('--years',              action='store',      default=[ 2016, 2017 ], type=int, choices=[2016, 2017, 2018], nargs="*",         help="Which years to combine?")
 argParser.add_argument('--cardFileSM16',       action='store',      default=None, type=str,                                                          help="SM cardfile for 2016")
 argParser.add_argument('--cardFileSM17',       action='store',      default=None, type=str,                                                          help="SM cardfile for 2017")
 argParser.add_argument('--cardFileSM18',       action='store',      default=None, type=str,                                                          help="SM cardfile for 2018")
-argParser.add_argument('--variables' ,         action='store',      default = ['ctZ', 'ctZI'],       type=str,   nargs=*,                            help="argument variables")
+argParser.add_argument('--variables' ,         action='store',      default = ['ctZ', 'ctZI'],       type=str,   nargs="*",                          help="argument variables")
 argParser.add_argument('--plotVariables' ,     action='store',      default = ['ctZ', 'ctZI'],       type=str,   nargs=2,                            help="argument plotting variables")
 argParser.add_argument('--binning',            action='store',      default=[30, -2, 2, 30, -2, 2 ], type=float, nargs=6,                            help="argument parameters")
-argParser.add_argument('--checkOnly',          action='store_true',                                                                                  help='Just check if yield is already calculated', )
 argParser.add_argument('--contours',           action='store_true',                                                                                  help='draw 1sigma and 2sigma contour line?')
 argParser.add_argument('--smooth',             action='store_true',                                                                                  help='smooth histogram?')
 argParser.add_argument('--zRange',             action='store',      default=[None, None],      type=float, nargs=2,                                  help="argument parameters")
 argParser.add_argument('--xyRange',            action='store',      default=[None, None, None, None],  type=float, nargs=4,                          help="argument parameters")
 argParser.add_argument('--binMultiplier',      action='store',      default=3,                 type=int,                                             help='bin multiplication factor')
 argParser.add_argument('--skipMissingPoints',  action='store_true',                                                                                  help='Set missing NLL points to 999?')
+argParser.add_argument('--batchMode',          action='store_true',                                                                                  help='Use database from batch mode')
 argParser.add_argument('--tag',                action='store',      default="combined",        type=str,                                             help='bin multiplication factor')
 args = argParser.parse_args()
 
@@ -80,15 +88,20 @@ if args.cardFileSM16 and (not args.cardFileSM18 and 2018 in args.years):
         args.cardFileSM18 = args.cardFileSM16.replace("2016","scaled_2018")
     else:
         args.cardFileSM18 = args.cardFileSM16.replace(".","_scaled_2018.")
+cardsSM    = { 2016:args.cardFileSM16 if args.cardFileSM16 else "none", 2017:args.cardFileSM17 if args.cardFileSM17 else "none", 2018:args.cardFileSM18 if args.cardFileSM18 else "none" }
 
 tableName = "nllcache"
 cache_dir_nll    = os.path.join(cache_directory, "nll")
 if not os.path.isdir(cache_dir_nll):
     os.makedirs(cache_dir_nll)
-dbFile = "_".join( ["NLLcache"] + map( str, args.years ) ) + ".sql"
+dbFile = "_".join( ["NLLcache"] + map( str, args.years ) + args.variables )
+dbFile += "_batch.sql" if args.batchMode else ".sql"
 dbPath = os.path.join(cache_dir_nll, dbFile)
 
-nllCache  = Cache( dbPath, tableName, ["cardname16", "cardname17", "cardname18", "cardname", "WC", "WC_val", "nll_prefit", "nll_postfit" ] )
+allWC = ['cblS2', 'ctl1', 'ctl3', 'ctl2', 'cblSI1', 'cQl31', 'cQl32', 'cQl33', 'ctWI', 'ctq8', 'cQe3', 'cptbI', 'cQe1', 'ctu1', 'ctlS2', 'cQQ8', 'ctu8', 'cQQ1', 'cQt1', 'ctlT1', 'ctlTI2', 'cblSI2', 'cblS1', 'cblS3', 'ctlTI3', 'ctd1', 'cQq81', 'cQq83', 'ctb8', 'cbW', 'ctpI', 'cpQ3', 'ctlSI1', 'ctb1', 'ctGI', 'cQb8', 'ctW', 'ctlTI1', 'ctlS3', 'cpQM', 'cQd8', 'ctq1', 'ctZ', 'cQb1', 'ctlSI3', 'ctG', 'cQq13', 'ctlSI2', 'ctlT2', 'ctlT3', 'cQq11', 'cptb', 'ctt1', 'ctd8', 'cte2', 'cte3', 'cQu1', 'cte1', 'ctp', 'cQd1', 'cQe2', 'cpb', 'cQu8', 'ctlS1', 'cbWI', 'cQt8', 'cblSI3', 'cQlM2', 'cQlM3', 'cQlM1', 'cpt', 'ctZI']
+allWCDict = { var:0 for var in allWC }
+tablesEntries  = [ "process", "years" ] + allWC
+nllCache       = Cache( dbPath, tableName, tablesEntries )
 if nllCache is None: raise
 
 if set( args.plotVariables ) - set( args.variables ):
@@ -103,35 +116,30 @@ if len( args.plotVariables ) != 2:
 from TTZRun2EFT.Samples.genTuples_TTZ_postProcessed import *
 genSignalSample = ttZ_ll_LO_order2_15weights_ref
 
-cardname  = [ genSignalSample.name ]
-cardname += map( str, args.years )
-cardname += [ args.genSelection ]
-for i, var in enumerate(args.variables):
-    cardname += [ var, "var%i"%i ]
-cardname += [ 'small' if args.small else 'full' ]
-cardname  = '_'.join( cardname )
-
-logger.info( "General card name: %s" %cardname )
-
 lumi = {}
 lumi[2016] = 35.92
 lumi[2017] = 41.86
 lumi[2018] = 58.83
 lumi_scale = sum( [ lumi[year] for year in args.years ])
 
-def getNllData( point ):
-    card = cardname
-    for i, var in enumerate(point):
-        card = card.replace("var%i"%i, str(var))
+notCached  = 0
+def getNllData( pointDict ):
+    global notCached
 
-    res = {"cardname16":cardsSM[2016], "cardname17":cardsSM[2017], "cardname18":cardsSM[2018], "cardname":card, "WC":"_".join(args.variables), "WC_val":"_".join(map(str,point))}
+    varDict = allWCDict
+    for key, val in pointDict.iteritems():
+        varDict[key] = val
+
+    res = { "process":"ttZ", "years":"_".join( map( str, args.years ) ) }
+    res.update( varDict )
     nCacheFiles = nllCache.contains( res )
 
     if nCacheFiles:
         cachedDict = nllCache.getDicts( res )[0]
-        nll = cachedDict["nll_prefit"]
+        nll = cachedDict["value"]
     else: 
-        logger.info("Data for %s=%s and %s=%s not in cache!"%( args.variables[0], str(var1), args.variables[1], str(var2) ) )
+        logger.info( "Data for %s not in cache"%( ", ".join( ["%s = %s"%(key, val) for key, val in pointDict.iteritems() ] )) )
+        notCached += 1
         if args.skipMissingPoints: nll = 999
         else: sys.exit(1)
     return float(nll)
@@ -145,6 +153,8 @@ def chunks( l, n ):
 binDict = dict(zip( args.variables, [dict(zip( ["nBins", "min", "max"], var )) for var in chunks(args.binning, 3) ] ))
 
 for var in binDict.values():
+    var["nBins"] = int( var["nBins"] )
+
     if var["nBins"] > 1:
         xRange       = np.linspace( var["min"], var["max"], var["nBins"], endpoint=False)
         halfstepsize = 0.5 * ( xRange[1] - xRange[0] )
@@ -154,11 +164,12 @@ for var in binDict.values():
 
 # get all possible combinations of points for i variables, set non-plot variables tto 0 except for profiled plot
 points2D = list( itertools.product( *(binDict[var]["range"] if var in args.plotVariables or args.profiled else [0]*len(binDict[var]["range"]) for var in args.variables) ) ) #2D plots
+points2D = [ dict(zip( args.plotVariables, point ) ) for point in points2D ]
 
 logger.info("Loading cache data" )
 
-sm_nll  = getNllData( tuple( [0]*len(args.variables) ) )
-nllData = [ tuple( list( point ) + [ 2*(getNllData( point )-sm_nll) ] ) for point in points2D ]
+sm_nll  = getNllData( dict( zip( args.plotVariables, [0]*len(args.variables) ) ) )
+nllData = [ tuple( [ point[var] for var in args.plotVariables ] + [ 2*(getNllData( point )-sm_nll) ] ) for point in points2D ]
 
 # now reduce dimensions for plot, either profiled or just remove other dimensions
 if args.profiled:
@@ -175,6 +186,7 @@ if args.profiled:
 else:
     nllData = [ tuple( [ p for i, p in enumerate(point[:-1]) if args.variables[i] in args.plotVariables] + [ point[-1] ] ) for point in nllData ]
 
+logger.info( "Got %i points to plot"%(len(nllData)-notCached+1) )
 
 def toGraph2D( name, title, data ):
     result = ROOT.TGraph2D( len(data) )
@@ -194,6 +206,8 @@ def toGraph2D( name, title, data ):
 #get TGraph2D from results list
 title = "TTZ_%s_%s"%(args.plotVariables[0], args.plotVariables[1])
 a, debug = toGraph2D( title, title, nllData )
+xbins    = binDict[args.plotVariables[0]]["nBins"]
+ybins    = binDict[args.plotVariables[1]]["nBins"]
 nxbins   = max( 1, min( 500, xbins*args.binMultiplier ) )
 nybins   = max( 1, min( 500, ybins*args.binMultiplier ) )
 
@@ -208,7 +222,9 @@ if args.smooth: hist.Smooth()
 
 cans = ROOT.TCanvas("can_%s"%title,"",500,500)
 
+#contours = [1.515**2,2.486**2] # 1/2 sigma levels
 contours = [2.28, 5.99]# (68%, 95%) for 2D
+
 if args.contours:
     histsForCont = hist.Clone()
     c_contlist = ((ctypes.c_double)*(len(contours)))(*contours)
@@ -291,8 +307,7 @@ latex2.SetTextSize(0.04)
 latex2.SetTextFont(42)
 latex2.SetTextAlign(11)
 
-y   = str(args.years[0]) if len(args.years)==1 else "combined"
-sel = selection[args.selections[0]] if len(args.selections)==1 else "combined"
+y   = str(args.years[0]) if len(args.years)==1 else "_".join( ["combined"] + map(str,args.years) )
 plot_directory_ = os.path.join( plot_directory, "NLLPlots", y, "_".join(args.variables) )
 
 if not os.path.isdir( plot_directory_ ):

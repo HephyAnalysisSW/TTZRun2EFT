@@ -35,11 +35,24 @@ ttZ_ll_LO_order2_15weights_ref.reweight_pkl  = os.path.join( gridpack_directory,
 ttZ_ll_LO_order2_15weights_ref.nEvents       = 1000000
 ttZ_ll_LO_order2_15weights_ref.xsec          = 0.5205 * 0.0915 / 0.0565 #pb ttZ, Z->ll, ttZ gridpack * ttZ NLO Daniel / ttZ LO run.py UFO
 
+#ttZ_ll_LO_order4_6weights_ref                = FWLiteSample.fromDAS("ttZ_ll_LO_order4_6weights_ref", "", "phys03", dbFile = dbFile, overwrite=ov, prefix='root://hephyse.oeaw.ac.at/' )
+#ttZ_ll_LO_order4_6weights_ref.reweight_pkl   = os.path.join( gridpack_directory, "EFT/ttZ_ll_LO_order4_6weights_ref/", "ttZ0j_rwgt_slc6_amd64_gcc630_CMSSW_9_3_0_tarball.pkl" )
+#ttZ_ll_LO_order4_6weights_ref.nEvents        = 1000000
+#ttZ_ll_LO_order4_6weights_ref.xsec           = 0.2005 * 0.0915 / 0.0565 #pb ttZ, Z->ll, ttZ gridpack * ttZ NLO Daniel / ttZ LO run.py UFO
+
+# for testing, no ref point
+ttZ_ll_LO_order3_8weights                    = FWLiteSample.fromDAS("fwlite_ttZ_ll_LO_order3_8weights", "/ttZ0j_rwgt_slc6_amd64_gcc630_CMSSW_9_3_0_tarball/llechner-ttZ0j_order3_8weights-7a5fde3f5bf89006ee3acec926ca87d8/USER", "phys03", dbFile = dbFile, overwrite=ov, prefix='root://hephyse.oeaw.ac.at/')
+ttZ_ll_LO_order3_8weights.reweight_pkl       = "/afs/hephy.at/data/llechner01/TTXPheno/gridpacks/07052018/ttZ/order3/ttZ0j_rwgt_slc6_amd64_gcc630_CMSSW_9_3_0_tarball.pkl"
+ttZ_ll_LO_order3_8weights.nEvents            = 1000000
+ttZ_ll_LO_order3_8weights.xsec               = 0.05363 * 0.0915 / 0.0565 #pb ttZ, Z->ll, ttZ gridpack * ttZ NLO Daniel / ttZ LO run.py UFO
+
 SM = [
 ]
 
 EFT = [
     ttZ_ll_LO_order2_15weights_ref,
+#    ttZ_ll_LO_order4_6weights_ref,
+    ttZ_ll_LO_order3_8weights,
 ]
 
 allSamples = SM + EFT
